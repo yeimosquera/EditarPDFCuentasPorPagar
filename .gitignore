@@ -1,0 +1,24 @@
+# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+
+# Rider/Jetbrains
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# NuGet
+*.nupkg
+.packages/
+
+# Logs
+*.log
+
+# Residuos
+*.tmp
