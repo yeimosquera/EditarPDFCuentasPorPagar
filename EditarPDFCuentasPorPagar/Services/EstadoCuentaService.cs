@@ -336,12 +336,12 @@ namespace EditarPDFCuentasPorPagar.Services
             var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
             var canvas = new PdfCanvas(page.NewContentStreamBefore(), page.GetResources(), document);
 
-            var x = location.Left + location.Width + 2f;
-            var y = pageSize.GetHeight() - location.Top - location.Height -2f;
+            var xAbonos = 480f; // Ajustar este valor según la columna ABONOS real del PDF
+            var y = pageSize.GetHeight() - location.Top - location.Height - 2f;
 
             canvas.BeginText()
                 .SetFontAndSize(font, 15f)
-                .MoveText(x, y)
+                .MoveText(xAbonos, y)
                 .ShowText(textoAInsertar)
                 .EndText();
 
