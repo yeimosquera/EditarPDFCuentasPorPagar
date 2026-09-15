@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EditarPDFCuentasPorPagar.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
-    public class PdfFolderController : ControllerBase
+    [Route("api/facturas")]
+    public class FacturasController : ControllerBase
     {
         private readonly IPdfFolderProcessorService _pdfFolderProcessorService;
 
-        public PdfFolderController(IPdfFolderProcessorService pdfFolderProcessorService)
+        public FacturasController(IPdfFolderProcessorService pdfFolderProcessorService)
         {
             _pdfFolderProcessorService = pdfFolderProcessorService;
         }
