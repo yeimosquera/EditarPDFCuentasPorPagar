@@ -68,11 +68,7 @@ namespace EditarPDFCuentasPorPagar.Services
                 return Task.FromResult(response);
             }
 
-            var outputDirectory = Path.GetDirectoryName(request.OutputPath);
-            if (!string.IsNullOrEmpty(outputDirectory))
-            {
-                Directory.CreateDirectory(outputDirectory);
-            }
+            Directory.CreateDirectory(request.OutputPath);
 
             foreach (var regla in reglas)
             {
@@ -83,43 +79,10 @@ namespace EditarPDFCuentasPorPagar.Services
                 }
 
                 var palabraClave = regla.PalabraClave.Trim();
-                var foundMatch = false;
+                var matchedFile = pdfFiles.FirstOrDefault(file =>
+                    Path.GetFileName(file).Contains(palabraClave, StringComparison.OrdinalIgnoreCase));
 
-                foreach (var pdfFile in pdfFiles)
-                {
-                    try
-                    {
-                        if (!ContainsKeywordInPdf(pdfFile, palabraClave, out var pageIndex))
-                        {
-                            continue;
-                        }
-
-                        var outputFile = BuildOutputPath(request.OutputPath, palabraClave);
-                        StampTextOnPdf(pdfFile, outputFile, regla.TextoAInsertar, pageIndex);
-
-                        response.ArchivosProcesados.Add(outputFile);
-                        foundMatch = true;
-                        resultadosPorRegla.Add((palabraClave, true));
-
-                        _logger.LogInformation(
-                            "Se encontró la palabra clave {PalabraClave} en {PdfFile} en la página {PageIndex}. Se guardó el archivo en {OutputFile}.",
-                            palabraClave,
-                            pdfFile,
-                            pageIndex,
-                            outputFile);
-
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex,
-                            "Error al procesar la palabra clave {PalabraClave} en el archivo {PdfFile}.",
-                            palabraClave,
-                            pdfFile);
-                    }
-                }
-
-                if (!foundMatch)
+                if (matchedFile == null)
                 {
                     response.PalabrasNoEncontradas.Add(palabraClave);
                     resultadosPorRegla.Add((palabraClave, false));
@@ -127,6 +90,31 @@ namespace EditarPDFCuentasPorPagar.Services
                         "No se encontró la palabra clave {PalabraClave} en ningún PDF de la carpeta {FilePath}.",
                         palabraClave,
                         request.FilePath);
+                    continue;
+                }
+
+                try
+                {
+                    var outputFile = Path.Combine(request.OutputPath, Path.GetFileName(matchedFile));
+                    StampTextOnPdf(matchedFile, outputFile, regla.TextoAInsertar);
+
+                    response.ArchivosProcesados.Add(outputFile);
+                    resultadosPorRegla.Add((palabraClave, true));
+
+                    _logger.LogInformation(
+                        "Se encontró el GUID {PalabraClave} en {PdfFile}. Se guardó el archivo en {OutputFile}.",
+                        palabraClave,
+                        matchedFile,
+                        outputFile);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Error al procesar la palabra clave {PalabraClave} en el archivo {PdfFile}.",
+                        palabraClave,
+                        matchedFile);
+                    response.PalabrasNoEncontradas.Add(palabraClave);
+                    resultadosPorRegla.Add((palabraClave, false));
                 }
             }
 
@@ -149,34 +137,7 @@ namespace EditarPDFCuentasPorPagar.Services
             return Task.FromResult(response);
         }
 
-        private static bool ContainsKeywordInPdf(string pdfPath, string keyword, out int pageIndex)
-        {
-            pageIndex = 0;
-
-            using var reader = new PdfReader(pdfPath);
-            using var pdfDocument = new PdfDocument(reader);
-
-            for (var pageNumber = 1; pageNumber <= pdfDocument.GetNumberOfPages(); pageNumber++)
-            {
-                var page = pdfDocument.GetPage(pageNumber);
-                var strategy = new LocationTextExtractionStrategy();
-                var processor = new PdfCanvasProcessor(strategy);
-
-                processor.ProcessPageContent(page);
-                var extractedText = strategy.GetResultantText();
-
-                if (!string.IsNullOrWhiteSpace(extractedText) &&
-                    extractedText.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    pageIndex = pageNumber;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static void StampTextOnPdf(string sourcePdfPath, string destinationPdfPath, string textToInsert, int pageNumber)
+        private static void StampTextOnPdf(string sourcePdfPath, string destinationPdfPath, string textToInsert)
         {
             if (string.IsNullOrWhiteSpace(textToInsert))
             {
@@ -193,21 +154,30 @@ namespace EditarPDFCuentasPorPagar.Services
             using var writer = new PdfWriter(destinationPdfPath);
             using var pdfDocument = new PdfDocument(reader, writer);
 
-            var page = pdfDocument.GetPage(pageNumber);
-            var pageSize = page.GetPageSize();
             var font = PdfFontFactory.CreateFont(iText.IO.Font.Constants.StandardFonts.HELVETICA_BOLD);
             var fontSize = 20f;
-            var xText = pageSize.GetWidth() - 260f - font.GetWidth(textToInsert, fontSize);
-            var yText = pageSize.GetHeight() - 65f;
+            var marginSuperior = 30f;
+            const float cmToPoints = 28.3464567f;
+            var offsetDerecha = 1f * cmToPoints;
+            var offsetAbajo = 0.5f * cmToPoints;
 
-            var canvas = new PdfCanvas(page);
-            canvas.BeginText()
-                  .SetFontAndSize(font, fontSize)
-                  .SetFillColor(iText.Kernel.Colors.ColorConstants.BLACK)
-                  .MoveText(xText, yText)
-                  .ShowText(textToInsert)
-                  .EndText();
-            canvas.Release();
+            for (var pageNumber = 1; pageNumber <= pdfDocument.GetNumberOfPages(); pageNumber++)
+            {
+                var page = pdfDocument.GetPage(pageNumber);
+                var pageSize = page.GetPageSize();
+                var textWidth = font.GetWidth(textToInsert, fontSize);
+                var xText = (pageSize.GetWidth() / 2) - (textWidth / 2f) + offsetDerecha;
+                var yText = pageSize.GetHeight() - marginSuperior - offsetAbajo;
+
+                var canvas = new PdfCanvas(page);
+                canvas.BeginText()
+                      .SetFontAndSize(font, fontSize)
+                      .SetFillColor(iText.Kernel.Colors.ColorConstants.BLACK)
+                      .MoveText(xText, yText)
+                      .ShowText(textToInsert)
+                      .EndText();
+                canvas.Release();
+            }
         }
 
         private static string BuildOutputPath(string outputPath, string keyword)
