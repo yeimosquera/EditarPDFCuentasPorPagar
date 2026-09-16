@@ -158,8 +158,8 @@ namespace EditarPDFCuentasPorPagar.Services
             var fontSize = 20f;
             var marginSuperior = 30f;
             const float cmToPoints = 28.3464567f;
-            var offsetDerecha = 1f * cmToPoints;
-            var offsetAbajo = 0.5f * cmToPoints;
+            var offsetDerecha = 2.5f * cmToPoints;
+            var offsetAbajo = 0.8f * cmToPoints;
 
             for (var pageNumber = 1; pageNumber <= pdfDocument.GetNumberOfPages(); pageNumber++)
             {
